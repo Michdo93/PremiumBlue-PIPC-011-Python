@@ -14,6 +14,16 @@ pip install -r requirements.txt
 cp config.example.yaml config.yaml   # IP und Passwort eintragen
 ```
 
+Windows (PowerShell):
+
+```powershell
+git clone https://github.com/Michdo93/LogiLink-WC0030A-Python.git
+cd LogiLink-WC0030A-Python
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item config.example.yaml config.yaml   # IP und Passwort eintragen
+```
+
 Die Zugangsdaten stehen nicht mehr im Code. Reihenfolge: Defaults < `config.yaml` < Umgebungsvariablen (`WC0030A_HOST`, `WC0030A_PASSWORD`, `MQTT_HOST` …) < CLI-Optionen (`--host`, `--password`).
 
 ## Kommandozeile
@@ -22,13 +32,15 @@ Die Zugangsdaten stehen nicht mehr im Code. Reihenfolge: Defaults < `config.yaml
 python -m wc0030a status                 # Geräte- und Laufzeitstatus als JSON
 python -m wc0030a status --all           # alle lesenden CGIs
 python -m wc0030a ptz left               # 0,5 s fahren, anhalten (wie mobile.htm)
-python -m wc0030a ptz left --hold 2      # 2 s fahren
-python -m wc0030a ptz up --continuous    # fahren bis ...
+python -m wc0030a ptz left --count 3    # drei Einzelschritte (Kurzform: -n 3)
+python -m wc0030a ptz up --continuous    # fahren bis „stop“
 python -m wc0030a stop
 python -m wc0030a ptz center
 python -m wc0030a preset goto 3          # Presets 1–9
 python -m wc0030a preset set 3
-python -m wc0030a patrol h start         # h | v | all ... start | stop
+python -m wc0030a patrol h start         # Achse h oder v
+python -m wc0030a patrol h stop
+python -m wc0030a patrol all stop        # beide Patrouillen stoppen
 python -m wc0030a relay on
 python -m wc0030a snapshot bild.jpg
 python -m wc0030a image                  # Bildparameter anzeigen
@@ -36,9 +48,11 @@ python -m wc0030a image brightness=140 flip=1 hz=1 osd=0
 python -m wc0030a motion                 # Bewegungsmelder anzeigen
 python -m wc0030a motion motion_enable=1 motion_level=3
 python -m wc0030a lamp 2                 # Status-LED: 0/1 blinken, 2 aus, 3 an
-python -m wc0030a cruise list|start 0|stop
+python -m wc0030a cruise list            # Kurse 0–9 mit Status
+python -m wc0030a cruise start 0         # warnt, wenn Kurs 0 nicht angelegt ist
+python -m wc0030a cruise stop
 python -m wc0030a params 2               # Einstellungsgruppe 1–14 lesen
-python -m wc0030a log
+python -m wc0030a log                    # Einträge als Liste; --raw = flache Kamera-Variablen
 python -m wc0030a urls                   # Snapshot-/MJPEG-/RTSP-URL für VLC, openHAB …
 python -m wc0030a raw get_camera_vars.cgi
 python -m wc0030a probe                  # Kamera erkunden (siehe unten)
@@ -61,6 +75,7 @@ from wc0030a import Camera
 
 cam = Camera("192.168.0.35", "admin", "geheim")
 cam.step("right")              # kurz fahren, anhalten
+cam.step("right", count=3)     # drei Einzelschritte
 cam.move("up"); cam.stop()     # Dauerfahrt
 cam.preset_goto(2)
 print(cam.real_status()["realstatus_motion"])
@@ -91,7 +106,7 @@ Beispieldateien liegen in `openhab/` (Things, Items, Sitemap, MAP-Transformation
 | `wc0030a/state/json/<cgi>` | → | vollständige Antwort als JSON |
 | `wc0030a/state/last_error` | → | letzte Fehlermeldung |
 | `wc0030a/snapshot` | → | JPEG-Bytes (Image-Channel), auf Befehl, bei Bewegung oder im Intervall |
-| `wc0030a/cmd/ptz` | ← | `UP` `DOWN` `LEFT` `RIGHT` `UP_LEFT` `UP_RIGHT` `DOWN_LEFT` `DOWN_RIGHT` `CENTER` `STOP` – Einzelschritt |
+| `wc0030a/cmd/ptz` | ← | `UP` `DOWN` `LEFT` `RIGHT` `UP_LEFT` `UP_RIGHT` `DOWN_LEFT` `DOWN_RIGHT` `CENTER` `STOP` – Einzelschritt; `LEFT:3` = drei Schritte |
 | `wc0030a/cmd/ptz/move` | ← | Richtung → Dauerfahrt, `STOP` beendet |
 | `wc0030a/cmd/preset` | ← | `1`–`9` anfahren |
 | `wc0030a/cmd/preset/set` | ← | `1`–`9` speichern |
@@ -182,6 +197,14 @@ Die übrigen Setter (`set_video`, `set_audio`, `set_ftp`, `set_smtp`, `set_datet
 ```bash
 python tools/fake_camera.py --port 8080 &
 WC0030A_HOST=127.0.0.1 WC0030A_PORT=8080 WC0030A_PASSWORD=test python -m wc0030a web
+```
+
+PowerShell:
+
+```powershell
+Start-Process python "tools/fake_camera.py --port 8080"
+$env:WC0030A_HOST="127.0.0.1"; $env:WC0030A_PORT="8080"; $env:WC0030A_PASSWORD="test"
+python -m wc0030a web
 ```
 
 ## Sicherheit

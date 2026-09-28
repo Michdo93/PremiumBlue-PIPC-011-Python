@@ -14,6 +14,7 @@ DEFAULTS: dict[str, Any] = {
         "user": "admin",
         "password": "",
         "timeout": 5,
+        "retries": 1,          # Wiederholungen bei Timeout/Verbindungsfehler
         "invert_v": False,     # Überkopfmontage: oben/unten tauschen
         "invert_h": False,
         "step_seconds": 0.5,   # Dauer einer Einzelschritt-Bewegung (wie mobile.htm)
@@ -42,6 +43,8 @@ ENV = {
     "WC0030A_PORT": ("camera", "port"),
     "WC0030A_USER": ("camera", "user"),
     "WC0030A_PASSWORD": ("camera", "password"),
+    "WC0030A_TIMEOUT": ("camera", "timeout"),
+    "WC0030A_RETRIES": ("camera", "retries"),
     "MQTT_HOST": ("mqtt", "host"),
     "MQTT_PORT": ("mqtt", "port"),
     "MQTT_USER": ("mqtt", "user"),
@@ -92,5 +95,6 @@ def camera_from(cfg: dict[str, Any]):
     from .api import Camera
     c = cfg["camera"]
     return Camera(c["host"], c["user"], c["password"], port=int(c["port"]),
-                  timeout=float(c["timeout"]), invert_v=bool(c["invert_v"]),
+                  timeout=float(c["timeout"]), retries=int(c.get("retries", 1)),
+                  invert_v=bool(c["invert_v"]),
                   invert_h=bool(c["invert_h"]), step_seconds=float(c["step_seconds"]))

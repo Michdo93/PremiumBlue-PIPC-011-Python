@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 from typing import Any, Iterator
@@ -36,7 +37,7 @@ class Camera:
     """
 
     def __init__(self, host: str, user: str = "admin", password: str = "",
-                 port: int = 80, timeout: float = 5.0,
+                 port: int = 80, timeout: float = 5.0, retries: int = 1,
                  invert_v: bool = False, invert_h: bool = False,
                  step_seconds: float = C.STEP_SECONDS):
         self.host = host
@@ -44,6 +45,7 @@ class Camera:
         self.user = user
         self.password = password
         self.timeout = timeout
+        self.retries = max(0, int(retries))
         self.invert_v = invert_v
         self.invert_h = invert_h
         self.step_seconds = step_seconds
@@ -72,16 +74,28 @@ class Camera:
              stream: bool = False, timeout: float | None = None) -> requests.Response:
         p = dict(params or {})
         p.update(self.auth)
-        try:
-            if stream:  # eigene Verbindung, damit der Stream keine Befehle blockiert
-                r = requests.get(self._abs(path), params=p, stream=True,
-                                 timeout=timeout or self.timeout)
-            else:
-                with self._lock:
-                    r = self._session.get(self._abs(path), params=p,
-                                          timeout=timeout or self.timeout)
-        except requests.RequestException as exc:
-            raise CameraError(f"{path}: {exc}") from exc
+        attempts = 1 + self.retries
+        for attempt in range(1, attempts + 1):
+            try:
+                if stream:  # eigene Verbindung, damit der Stream keine Befehle blockiert
+                    r = requests.get(self._abs(path), params=p, stream=True,
+                                     timeout=timeout or self.timeout)
+                else:
+                    with self._lock:
+                        r = self._session.get(self._abs(path), params=p,
+                                              timeout=timeout or self.timeout)
+                break
+            except (requests.ConnectionError, requests.Timeout) as exc:
+                # Die Kamera beantwortet die erste Anfrage nach einer Pause oft zu spät
+                # bzw. schließt Keep-Alive-Verbindungen still -> einmal neu versuchen.
+                if attempt >= attempts:
+                    raise CameraError(f"{path}: {exc}" + (f" (nach {attempts} Versuchen)"
+                                                          if attempts > 1 else "")) from exc
+                log.debug("%s: %s – Versuch %d/%d", path, exc, attempt + 1, attempts)
+                if not stream:
+                    self._session.close()  # evtl. tote Keep-Alive-Verbindung verwerfen
+            except requests.RequestException as exc:
+                raise CameraError(f"{path}: {exc}") from exc
         if r.status_code == 401:
             raise CameraError(f"{path}: Benutzername oder Passwort falsch (401)")
         if r.status_code != 200:
@@ -147,6 +161,25 @@ class Camera:
         info.update(self.get_vars("get_log_info.cgi", page=page, line=lines))
         return info
 
+    _LOG_KEY = re.compile(r"loginfo_(user|ip|time|type)_(\d+)")
+
+    def log_entries(self, page: int = 1, lines: int = 20) -> dict[str, Any]:
+        """Kamera-Log als Liste von Einträgen statt flacher loginfo_*_N-Variablen."""
+        raw = self.log(page, lines)
+        rows: dict[int, dict[str, Any]] = {}
+        rest: dict[str, Any] = {}
+        for key, value in raw.items():
+            m = self._LOG_KEY.fullmatch(key)
+            if not m:
+                rest[key] = value
+                continue
+            if isinstance(value, str):
+                value = value.strip() or None
+            rows.setdefault(int(m.group(2)), {})[m.group(1)] = value
+        rest["page"] = page
+        rest["entries"] = [rows[i] for i in sorted(rows)]
+        return rest
+
     def all_status(self) -> dict[str, Any]:
         out: dict[str, Any] = {}
         for cgi in C.READ_CGIS:
@@ -192,13 +225,24 @@ class Camera:
         """Bewegung anhalten (ein gemeinsamer Stopp-Code für alle Richtungen)."""
         self.ptz(C.PTZ_STOP)
 
-    def step(self, direction: str, seconds: float | None = None) -> None:
-        """Wie mobile.htm: fahren, warten (Default 0,5 s), anhalten."""
-        self.move(direction)
-        try:
-            time.sleep(self.step_seconds if seconds is None else seconds)
-        finally:
-            self.stop()
+    def step(self, direction: str, count: int = 1) -> None:
+        """Wie mobile.htm: fahren, step_seconds warten, anhalten – ``count``-mal hintereinander.
+
+        Zwischen den Schritten liegt eine kurze Pause (commands.STEP_PAUSE), damit die
+        Kamera den Stopp verarbeitet. Auch bei Fehler/Strg+C wird immer gestoppt.
+        """
+        count = int(count)
+        if not 1 <= count <= C.STEP_MAX_COUNT:
+            raise ValueError(f"count {count} außerhalb 1..{C.STEP_MAX_COUNT}")
+        d = self._map_dir(direction)  # Richtung vor der ersten Bewegung prüfen
+        for i in range(count):
+            if i:
+                time.sleep(C.STEP_PAUSE)
+            self.ptz(C.MOVE[d])
+            try:
+                time.sleep(self.step_seconds)
+            finally:
+                self.stop()
 
     def center(self) -> None:
         """Mittelknopf der Weboberfläche (PTZ_CMD_AUTOON)."""
@@ -301,7 +345,9 @@ class Camera:
 
     # ------------------------------------------------------------- Kurse
     def cruise_start(self, index: int) -> None:
-        """Gespeicherten Kurs (Preset-Tour) starten (cruise_set.htm)."""
+        """Gespeicherten Kurs (Preset-Tour) starten (cruise_set.htm). index=100 stoppt."""
+        if not (0 <= index < C.CRUISE_COUNT or index == 100):
+            raise ValueError(f"Kursindex {index} außerhalb 0..{C.CRUISE_COUNT - 1}")
         self.raw("control_cruise.cgi", index=index)
 
     def cruise_stop(self) -> None:

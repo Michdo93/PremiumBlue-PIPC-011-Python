@@ -8,7 +8,8 @@ Topic-Schema (base = mqtt.base_topic, Default "wc0030a"):
   base/snapshot                JPEG-Bytes                     (retained)
 
   base/cmd/ptz                 UP DOWN LEFT RIGHT UP_LEFT UP_RIGHT DOWN_LEFT
-                               DOWN_RIGHT CENTER STOP  -> Einzelschritt
+                               DOWN_RIGHT CENTER STOP  -> Einzelschritt,
+                               "LEFT:3" -> drei Einzelschritte
   base/cmd/ptz/move            Richtung -> Dauerbewegung, STOP beendet
   base/cmd/preset              1..9 -> Preset anfahren
   base/cmd/preset/set          1..9 -> aktuelle Position speichern
@@ -125,10 +126,13 @@ class Bridge:
                 return cam.center
             if up == "STOP":
                 return cam.stop
-            d = up.lower()
+            d, _, n = up.lower().partition(":")   # "LEFT" oder "LEFT:3"
             if d not in C.MOVE:
                 raise ValueError(f"Richtung '{payload}' unbekannt")
-            return lambda: cam.step(d)
+            count = int(n) if n else 1
+            if not 1 <= count <= C.STEP_MAX_COUNT:
+                raise ValueError(f"Anzahl {count} außerhalb 1..{C.STEP_MAX_COUNT}")
+            return lambda: cam.step(d, count)
         if sub == "ptz/move":
             if up == "STOP":
                 return cam.stop

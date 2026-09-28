@@ -240,6 +240,12 @@ def create_app(cam: Camera) -> Flask:
         fn = {"start": cam.move, "stop": cam.stop, "step": cam.step}.get(action)
         if not fn:
             return jsonify(ok=False, error="Aktion start|stop|step"), 400
+        if action == "step":  # optional ?count=N
+            try:
+                count = int(request.args.get("count", 1))
+            except ValueError:
+                return jsonify(ok=False, error="count muss eine ganze Zahl sein"), 400
+            return run(fn, direction, count)
         return run(fn, direction)
 
     @app.post("/api/ptz/center")

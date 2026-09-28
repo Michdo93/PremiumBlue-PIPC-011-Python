@@ -4,9 +4,11 @@ camera:
   port: 80
   user: admin
   password: "geheim"
+  timeout: 5             # s pro Anfrage
+  retries: 1             # erneuter Versuch bei Timeout (erste Anfrage nach Pause ist oft langsam)
   invert_v: false        # true bei Überkopfmontage
   invert_h: false
-  step_seconds: 0.5      # Einzelschritt (ptz step / MQTT cmd/ptz), wie mobile.htm
+  step_seconds: 0.5      # Dauer eines Einzelschritts (ptz --count / MQTT cmd/ptz), wie mobile.htm
 
 mqtt:
   host: localhost        # mosquitto auf dem Pi

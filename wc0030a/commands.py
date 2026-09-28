@@ -60,6 +60,9 @@ INVERT_H = {"left": "right", "right": "left", "up_left": "up_right", "up_right":
             "down_left": "down_right", "down_right": "down_left"}
 
 STEP_SECONDS = 0.5     # mobile.htm: Bewegung, 500 ms warten, Stopp
+STEP_PAUSE = 0.2       # Pause zwischen zwei Einzelschritten (ptz --count)
+STEP_MAX_COUNT = 50    # Obergrenze für Wiederholungen (CLI, MQTT, Web)
+CRUISE_COUNT = 10      # get_list_cruise.cgi: Kurse 0..9, Stopp mit index=100
 PRESET_COUNT = 9       # live.htm: set_preset(0..8), use_preset(0..8)
 
 # ------------------------------------------------------------ set_camera_vars

@@ -19,3 +19,8 @@ Include/
 Lib/
 Scripts/
 *.egg-info/
+
+bild.jpg
+bild.JPG
+bild.jpeg
+bild.JPEG
