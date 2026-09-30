@@ -1,26 +1,26 @@
-# Kopieren nach config.yaml (liegt in .gitignore) und anpassen.
+# Copy to config.yaml (listed in .gitignore) and adjust.
 camera:
   host: 192.168.0.35
   port: 80
   user: admin
-  password: "geheim"
-  timeout: 5             # s pro Anfrage
-  retries: 1             # erneuter Versuch bei Timeout (erste Anfrage nach Pause ist oft langsam)
-  invert_v: false        # true bei Überkopfmontage
+  password: "secret"
+  timeout: 5             # seconds per request
+  retries: 1             # retry on timeout (first request after idle is often slow)
+  invert_v: false        # true for ceiling mount
   invert_h: false
-  step_seconds: 0.5      # Dauer eines Einzelschritts (ptz --count / MQTT cmd/ptz), wie mobile.htm
+  step_seconds: 0.5      # duration of a single step (ptz --count / MQTT cmd/ptz), like mobile.htm
 
 mqtt:
-  host: localhost        # mosquitto auf dem Pi
+  host: localhost        # mosquitto on the Pi
   port: 1883
   user: ""
   password: ""
-  base_topic: wc0030a
-  poll_fast: 2           # Bewegung/Alarm
-  poll_slow: 60          # Geräteinfo, SD-Karte
-  snapshot_interval: 0   # 0 = nur auf Befehl / bei Bewegung
+  base_topic: pipc011
+  poll_fast: 2           # motion/alarm
+  poll_slow: 60          # device info, SD card
+  snapshot_interval: 0   # 0 = only on command / on motion
   snapshot_on_motion: true
-  allow_raw: false       # cmd/raw freischalten (nur zum Testen)
+  allow_raw: false       # enable cmd/raw (testing only)
 
 web:
   host: 0.0.0.0

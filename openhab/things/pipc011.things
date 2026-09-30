@@ -1,0 +1,61 @@
+// MQTT connection of the PIPC-011 via the bridge (python -m pipc_011 mqtt).
+// Adjust the broker settings; if a broker bridge thing already exists,
+// only copy the inner "Thing topic ..." and adjust the UIDs in the items.
+Bridge mqtt:broker:camBroker "Mosquitto (Camera Pi)" [ host="192.168.0.10", port=1883, secure=false, username="", password="" ] {
+
+    Thing topic pipc011 "PremiumBlue PIPC-011" @ "Smart Home Lab" [
+        availabilityTopic="pipc011/status", payloadAvailable="online", payloadNotAvailable="offline"
+    ] {
+    Channels:
+        // States
+        Type contact  : motion        "Motion"            [ stateTopic="pipc011/state/motion", on="ON", off="OFF" ]
+        Type contact  : alarm         "Alarm"             [ stateTopic="pipc011/state/alarm",  on="ON", off="OFF" ]
+        Type contact  : input1        "Alarm Input 1"     [ stateTopic="pipc011/state/input1", on="ON", off="OFF" ]
+        Type string   : resolution    "Resolution"        [ stateTopic="pipc011/state/resolution" ]
+        Type number   : framerate     "Frame Rate"        [ stateTopic="pipc011/state/framerate" ]
+        Type number   : sdFree        "SD Free"           [ stateTopic="pipc011/state/sd_free_mb" ]
+        Type number   : sdTotal       "SD Total"          [ stateTopic="pipc011/state/sd_total_mb" ]
+        Type string   : firmware      "Firmware"          [ stateTopic="pipc011/state/firmware" ]
+        Type string   : lastError     "Last Error"        [ stateTopic="pipc011/state/last_error" ]
+
+        // Snapshot
+        Type image    : snapshot      "Snapshot"          [ stateTopic="pipc011/snapshot" ]
+        Type datetime : snapshotTime  "Captured"          [ stateTopic="pipc011/state/snapshot_time" ]
+        Type string   : snapshotCmd   "Request Snapshot"  [ commandTopic="pipc011/cmd/snapshot" ]
+
+        // Control
+        Type string   : ptz           "PTZ Step"          [ commandTopic="pipc011/cmd/ptz" ]
+        Type string   : ptzMove       "PTZ Move"          [ commandTopic="pipc011/cmd/ptz/move" ]
+        Type number   : preset        "Go to Preset"      [ commandTopic="pipc011/cmd/preset" ]
+        Type number   : presetSet     "Save Preset"       [ commandTopic="pipc011/cmd/preset/set" ]
+        Type string   : patrol        "Patrol"            [ stateTopic="pipc011/state/patrol", commandTopic="pipc011/cmd/patrol" ]
+        Type switch   : relay         "Relay"             [ stateTopic="pipc011/state/relay",  commandTopic="pipc011/cmd/relay" ]
+        Type number   : cruise        "Cruise"            [ commandTopic="pipc011/cmd/cruise" ]
+
+        // Camera motion detection
+        Type switch   : detection     "Motion Detection"  [ stateTopic="pipc011/state/motion/enable", commandTopic="pipc011/cmd/motion/enable" ]
+        Type number   : sensitivity   "Sensitivity"       [ stateTopic="pipc011/state/motion/level",  commandTopic="pipc011/cmd/motion/level", min=1, max=5 ]
+
+        // Image
+        Type number   : brightness    "Brightness"        [ stateTopic="pipc011/state/camera/brightness", commandTopic="pipc011/cmd/camera/brightness", min=0, max=255 ]
+        Type number   : contrast      "Contrast"          [ stateTopic="pipc011/state/camera/contrast",   commandTopic="pipc011/cmd/camera/contrast",   min=0, max=255 ]
+        Type number   : saturation    "Saturation"        [ stateTopic="pipc011/state/camera/saturation", commandTopic="pipc011/cmd/camera/saturation", min=0, max=200 ]
+        Type number   : hue           "Hue"               [ stateTopic="pipc011/state/camera/hue",        commandTopic="pipc011/cmd/camera/hue",        min=-128, max=127 ]
+        Type number   : ptzSpeed      "PTZ Speed"         [ stateTopic="pipc011/state/camera/ptzspeed",   commandTopic="pipc011/cmd/camera/ptzspeed",   min=1, max=100 ]
+        Type switch   : mirror        "Mirror"            [ stateTopic="pipc011/state/camera/mirror",     commandTopic="pipc011/cmd/camera/mirror", on="1", off="0" ]
+        Type switch   : flip          "Flip"              [ stateTopic="pipc011/state/camera/flip",       commandTopic="pipc011/cmd/camera/flip",   on="1", off="0" ]
+        Type number   : osdColor      "OSD Color"         [ stateTopic="pipc011/state/camera/OSDTimer",   commandTopic="pipc011/cmd/camera/OSDTimer" ]
+        Type number   : mainsHz       "Mains Frequency"   [ stateTopic="pipc011/state/camera/aec_value",  commandTopic="pipc011/cmd/camera/aec_value" ]
+        Type number   : lamp          "Status LED"        [ stateTopic="pipc011/state/lamp",              commandTopic="pipc011/cmd/lamp" ]
+    }
+}
+
+// Optional: video directly via the IpCamera binding (snapshot + MJPEG, no MQTT required).
+// Credentials are stored in plain text in the URL – alternative: point the sitemap's
+// Video element to the Flask web interface on the Pi (see sitemap).
+// Thing ipcamera:httponly:pipc011 "PIPC-011 Video" @ "Smart Home Lab" [
+//     ipAddress="192.168.0.35",
+//     snapshotUrl="http://192.168.0.35/cgi-bin/video_snapshot.cgi?user=admin&pwd=SECRET",
+//     ffmpegInput="rtsp://192.168.0.35:554/live/av0?user=admin&passwd=SECRET",
+//     mjpegUrl="http://192.168.0.35/cgi-bin/videostream.cgi?user=admin&pwd=SECRET"
+// ]

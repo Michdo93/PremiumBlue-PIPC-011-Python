@@ -1,16 +1,16 @@
-"""Erkundung der echten Kamera (nur lesend).
+"""Exploration of the real camera (read-only).
 
-Der gespeicherte Dump enthält die Seiten mit der eigentlichen Steuerlogik
-nicht (ffserver.htm, mobile.htm, Einstellungsseiten), und get_camera_vars /
-get_params kamen leer zurück, weil sie ohne Login abgerufen wurden.
+The saved dump does not contain the pages with the actual control logic
+(ffserver.htm, mobile.htm, settings pages), and get_camera_vars /
+get_params came back empty because they were fetched without login.
 
-`wc0030a probe` holt das mit Login nach:
-  1. alle lesenden get_*.cgi  -> JSON
-  2. crawlt alle .htm/.js-Seiten ab main.htm/login.htm
-  3. extrahiert aus dem JS jeden CGI-Aufruf mit seinen Parameternamen
-     und jede decoder_control-Nummer
-  4. prüft RTSP-Pfade per DESCRIBE (404 = gibt es nicht, 401/200 = gibt es)
-Ergebnis: Ordner + ZIP + report.md. Es werden keine set_*.cgi aufgerufen.
+`pipc_011 probe` fetches this with login:
+  1. all read-only get_*.cgi  -> JSON
+  2. crawls all .htm/.js pages starting from main.htm/login.htm
+  3. extracts every CGI call with its parameter names and every
+     decoder_control number from the JavaScript
+  4. checks RTSP paths via DESCRIBE (404 = does not exist, 401/200 = exists)
+Result: folder + ZIP + report.md. No set_*.cgi is ever called.
 """
 
 from __future__ import annotations
@@ -41,16 +41,16 @@ PARAM_RE = re.compile(r"[?&](\w+)=")
 DECODER_RE = re.compile(r"decoder_control\.cgi\?command=['\"]?\s*\+?\s*(\w+)", re.I)
 CALL_NUM_RE = re.compile(r"""on(?:mousedown|mouseup|click|touchstart|touchend)\s*=\s*["']([^"']*?\(\s*\d+[^"']*)["']""", re.I)
 
-RTSP_PATHS = ["/live/av0", "/live/av1"]  # av0 aus vlc_video.htm, av1 vermutlich Substream
+RTSP_PATHS = ["/live/av0", "/live/av1"]  # av0 from vlc_video.htm, av1 presumably substream
 
 
-def _fetch(cam: Camera, page: str) -> requests.Response | None:
-    url = cam.base_url + "/" + page.lstrip("/")
+def _fetch(camera: Camera, page: str) -> requests.Response | None:
+    url = camera.base_url + "/" + page.lstrip("/")
     try:
-        r = requests.get(url, params=cam.auth, timeout=cam.timeout)
+        response = requests.get(url, params=camera.auth, timeout=camera.timeout)
     except requests.RequestException:
         return None
-    return r if r.status_code == 200 else None
+    return response if response.status_code == 200 else None
 
 
 def _decode(data: bytes) -> str:
@@ -62,7 +62,7 @@ def _decode(data: bytes) -> str:
     return data.decode("latin-1", "replace")
 
 
-def crawl(cam: Camera, out: Path, limit: int = 200) -> dict[str, str]:
+def crawl(camera: Camera, out: Path, limit: int = 200) -> dict[str, str]:
     pages: dict[str, str] = {}
     queue = list(START_PAGES)
     seen: set[str] = set()
@@ -71,19 +71,19 @@ def crawl(cam: Camera, out: Path, limit: int = 200) -> dict[str, str]:
         if page in seen:
             continue
         seen.add(page)
-        r = _fetch(cam, page)
-        if r is None:
+        response = _fetch(camera, page)
+        if response is None:
             continue
-        text = _decode(r.content)
+        text = _decode(response.content)
         pages[page] = text
         dest = out / "web" / page
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(r.content)
+        dest.write_bytes(response.content)
         base = "http://x/" + page
         for ref in REF_RE.findall(" " + text):
-            p = urlparse(urljoin(base, ref)).path.lstrip("/")
-            if p and p not in seen and ".cgi" not in p:
-                queue.append(p)
+            ref_path = urlparse(urljoin(base, ref)).path.lstrip("/")
+            if ref_path and ref_path not in seen and ".cgi" not in ref_path:
+                queue.append(ref_path)
     return pages
 
 
@@ -95,15 +95,15 @@ def analyse(pages: dict[str, str]) -> dict:
     for page, text in pages.items():
         for name, rest in CGI_RE.findall(text):
             cgi_where[name].add(page)
-            # Parameter bis zum nächsten CGI-Namen in derselben Zeile
+            # parameters up to the next CGI name in the same line
             rest = re.split(r"\w+\.cgi", rest, maxsplit=1)[0]
-            for p in PARAM_RE.findall(rest):
-                if p not in ("user", "pwd", "next_url"):
-                    cgi_params[name].add(p)
-        for m in DECODER_RE.findall(text):
-            decoder[page].add(m)
-        for h in CALL_NUM_RE.findall(text):
-            handlers.append(f"{page}: {h.strip()}")
+            for param in PARAM_RE.findall(rest):
+                if param not in ("user", "pwd", "next_url"):
+                    cgi_params[name].add(param)
+        for ref in DECODER_RE.findall(text):
+            decoder[page].add(ref)
+        for handler in CALL_NUM_RE.findall(text):
+            handlers.append(f"{page}: {handler.strip()}")
     return {
         "cgi_params": {k: sorted(v) for k, v in sorted(cgi_params.items())},
         "cgi_where": {k: sorted(v) for k, v in sorted(cgi_where.items())},
@@ -116,7 +116,7 @@ SECRET_RE = re.compile(r"((?:var\s+)?\w*(?:pwd|pass|psk|key|guid)\w*\s*=\s*)(['\
 
 
 def redact(text: str) -> str:
-    """Passwörter/Schlüssel aus JS-Antworten entfernen (Bericht ist teilbar)."""
+    """Remove passwords/keys from JS responses (so the report can be shared)."""
     return SECRET_RE.sub(lambda m: f"{m.group(1)}{m.group(2)}***{m.group(2)}", text)
 
 
@@ -130,38 +130,38 @@ def _redact_obj(obj):
 
 
 def rtsp_probe(host: str, port: int) -> dict[str, str]:
-    """DESCRIBE ohne Login: 401 heißt 'Pfad existiert, Login nötig'."""
-    res = {}
+    """DESCRIBE without login: 401 means 'path exists, login required'."""
+    results = {}
     for path in RTSP_PATHS:
         url = f"rtsp://{host}:{port}{path}"
         req = (f"DESCRIBE {url} RTSP/1.0\r\nCSeq: 2\r\nAccept: application/sdp\r\n"
-               f"User-Agent: wc0030a-probe\r\n\r\n").encode()
+               f"User-Agent: pipc011-probe\r\n\r\n").encode()
         try:
-            with socket.create_connection((host, port), timeout=3) as s:
-                s.sendall(req)
-                line = s.recv(256).split(b"\r\n", 1)[0].decode(errors="replace")
+            with socket.create_connection((host, port), timeout=3) as sock:
+                sock.sendall(req)
+                line = sock.recv(256).split(b"\r\n", 1)[0].decode(errors="replace")
         except OSError as exc:
-            line = f"Fehler: {exc}"
-        res[path] = line
-    return res
+            line = f"Error: {exc}"
+        results[path] = line
+    return results
 
 
-def run(cam: Camera, out_dir: str = "probe_out") -> Path:
+def run(camera: Camera, out_dir: str = "probe_out") -> Path:
     out = Path(out_dir)
     (out / "cgi").mkdir(parents=True, exist_ok=True)
 
     status = {}
     for cgi in C.READ_CGIS:
         try:
-            text = cam.raw(cgi)
+            text = camera.raw(cgi)
             (out / "cgi" / cgi).write_text(redact(text), encoding="utf-8")
-            status[cgi] = cam.get_vars(cgi) if text.strip() else {}
+            status[cgi] = camera.get_vars(cgi) if text.strip() else {}
         except CameraError as exc:
             status[cgi] = {"error": str(exc)}
     status = _redact_obj(status)
     (out / "status.json").write_text(json.dumps(status, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    pages = crawl(cam, out)
+    pages = crawl(camera, out)
     info = analyse(pages)
     (out / "analysis.json").write_text(json.dumps(info, indent=2, ensure_ascii=False), encoding="utf-8")
 
@@ -169,38 +169,38 @@ def run(cam: Camera, out_dir: str = "probe_out") -> Path:
         rtsp_port = int(status.get("get_status.cgi", {}).get("rtsp_port", 554))
     except (TypeError, ValueError):
         rtsp_port = 554
-    rtsp = rtsp_probe(cam.host, rtsp_port)
+    rtsp = rtsp_probe(camera.host, rtsp_port)
 
-    # Einstellungsgruppen (get_params braucht ?type=1..14)
-    for t in C.PARAM_TYPES:
-        key = f"get_params.cgi?type={t}"
+    # settings groups (get_params requires ?type=1..14)
+    for param_type in C.PARAM_TYPES:
+        key = f"get_params.cgi?type={param_type}"
         try:
-            text = cam.raw("get_params.cgi", type=t)
-            (out / "cgi" / f"get_params_type{t}.cgi").write_text(redact(text), encoding="utf-8")
-            status[key] = _redact_obj(cam.get_vars("get_params.cgi", type=t))
+            text = camera.raw("get_params.cgi", type=param_type)
+            (out / "cgi" / f"get_params_type{param_type}.cgi").write_text(redact(text), encoding="utf-8")
+            status[key] = _redact_obj(camera.get_vars("get_params.cgi", type=param_type))
         except CameraError as exc:
             status[key] = {"error": str(exc)}
     (out / "status.json").write_text(json.dumps(status, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    lines = ["# Probe-Bericht WC0030A", ""]
-    st = status.get("get_status.cgi", {})
-    lines += [f"- Modell: {st.get('prot_mode')}  Firmware: {st.get('server_version')}  WebUI: {st.get('client_version')}",
-              f"- Seiten gefunden: {len(pages)}", "", "## CGI-Aufrufe aus der Weboberfläche", ""]
+    lines = ["# Probe Report PIPC-011", ""]
+    device = status.get("get_status.cgi", {})
+    lines += [f"- Model: {device.get('prot_mode')}  Firmware: {device.get('server_version')}  WebUI: {device.get('client_version')}",
+              f"- Pages found: {len(pages)}", "", "## CGI calls from the web interface", ""]
     for name, params in info["cgi_params"].items():
         lines.append(f"- `{name}`: {', '.join(params) or '–'}  _(in {', '.join(info['cgi_where'][name])})_")
-    lines += ["", "## decoder_control-Referenzen", ""]
+    lines += ["", "## decoder_control references", ""]
     for page, refs in info["decoder_refs"].items():
         lines.append(f"- {page}: {', '.join(refs)}")
-    lines += ["", "## Event-Handler mit Zahlen (PTZ-Buttons)", ""]
-    lines += [f"- `{h}`" for h in info["handlers"][:300]]
+    lines += ["", "## Event handlers with numbers (PTZ buttons)", ""]
+    lines += [f"- `{handler}`" for handler in info["handlers"][:300]]
     lines += ["", "## RTSP DESCRIBE", ""]
-    lines += [f"- `{p}` → {r}" for p, r in rtsp.items()]
-    lines += ["", "## Status (Login)", "", "```json", json.dumps(status, indent=2, ensure_ascii=False), "```"]
+    lines += [f"- `{path}` → {result}" for path, result in rtsp.items()]
+    lines += ["", "## Status (logged in)", "", "```json", json.dumps(status, indent=2, ensure_ascii=False), "```"]
     (out / "report.md").write_text("\n".join(lines), encoding="utf-8")
 
     zip_path = out.with_suffix(".zip")
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        for f in out.rglob("*"):
-            if f.is_file():
-                z.write(f, f.relative_to(out.parent))
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        for file in out.rglob("*"):
+            if file.is_file():
+                archive.write(file, file.relative_to(out.parent))
     return zip_path

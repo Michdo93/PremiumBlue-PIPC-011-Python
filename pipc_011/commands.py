@@ -1,15 +1,15 @@
-"""Befehlstabellen der WC0030A (Apexis APM-H803-MPC, WebUI 17.14.5.45).
+"""Command tables of the PIPC-011 (Apexis APM-H803-MPC, WebUI 17.14.5.45).
 
-Alle Werte stammen aus der Weboberfläche der Kamera (live.htm, mobile.htm,
-osdset.htm, setmenu/*.htm), nicht aus dem Foscam-SDK.
+All values were taken from the camera's own web interface (live.htm, mobile.htm,
+osdset.htm, setmenu/*.htm), not from the Foscam SDK.
 
 PTZ: /cgi-bin/decoder_control.cgi?type=<T>&cmd=<C>
-    type 0 = Bewegung   (cmd siehe PTZ_*)
-    type 1 = Preset speichern (cmd 0..8)
-    type 2 = Preset anfahren  (cmd 0..8)
-    type 3 = Schaltausgang    (cmd 1 = an, 0 = aus)
+    type 0 = movement      (cmd see PTZ_*)
+    type 1 = save preset   (cmd 0..8)
+    type 2 = goto preset   (cmd 0..8)
+    type 3 = relay output  (cmd 1 = on, 0 = off)
 
-Bild: /cgi-bin/set_camera_vars.cgi?type=<T>&value=<V>   (siehe SCAM_*)
+Image: /cgi-bin/set_camera_vars.cgi?type=<T>&value=<V>   (see SCAM_*)
 """
 
 from __future__ import annotations
@@ -24,14 +24,14 @@ PTZ_UP = 0
 PTZ_DOWN = 1
 PTZ_LEFT = 2
 PTZ_RIGHT = 3
-PTZ_FOCUS_ADD = 4      # nicht bei APM-H803-MPC (kein Fokus)
+PTZ_FOCUS_ADD = 4      # not supported by APM-H803-MPC (no focus)
 PTZ_FOCUS_DEL = 5
-PTZ_ZOOM_ADD = 6       # nicht bei APM-H803-MPC (kein Zoom)
+PTZ_ZOOM_ADD = 6       # not supported by APM-H803-MPC (no zoom)
 PTZ_ZOOM_DEL = 7
-PTZ_IRIS_OPEN = 8      # nicht bei APM-H803-MPC (keine Iris)
+PTZ_IRIS_OPEN = 8      # not supported by APM-H803-MPC (no iris)
 PTZ_IRIS_CLOSE = 9
 PTZ_STOP = 10
-PTZ_AUTO_ON = 11       # Mittelknopf der Weboberfläche -> Kamera fährt in die Mitte
+PTZ_AUTO_ON = 11       # center button of the web interface -> camera moves to center
 PTZ_AUTO_OFF = 12
 PTZ_LEFT_UP = 13
 PTZ_LEFT_DOWN = 14
@@ -53,22 +53,22 @@ MOVE = {
     "down_right": PTZ_RIGHT_DOWN,
 }
 
-# Bei Überkopfmontage bzw. gespiegeltem Bild sind die Achsen vertauscht.
+# For ceiling mounts or mirrored images the axes are swapped.
 INVERT_V = {"up": "down", "down": "up", "up_left": "down_left", "up_right": "down_right",
             "down_left": "up_left", "down_right": "up_right"}
 INVERT_H = {"left": "right", "right": "left", "up_left": "up_right", "up_right": "up_left",
             "down_left": "down_right", "down_right": "down_left"}
 
-STEP_SECONDS = 0.5     # mobile.htm: Bewegung, 500 ms warten, Stopp
-STEP_PAUSE = 0.2       # Pause zwischen zwei Einzelschritten (ptz --count)
-STEP_MAX_COUNT = 50    # Obergrenze für Wiederholungen (CLI, MQTT, Web)
-CRUISE_COUNT = 10      # get_list_cruise.cgi: Kurse 0..9, Stopp mit index=100
+STEP_SECONDS = 0.5     # mobile.htm: move, wait 500 ms, stop
+STEP_PAUSE = 0.2       # pause between two single steps (ptz --count)
+STEP_MAX_COUNT = 50    # upper limit for repetitions (CLI, MQTT, web)
+CRUISE_COUNT = 10      # get_list_cruise.cgi: cruises 0..9, stop with index=100
 PRESET_COUNT = 9       # live.htm: set_preset(0..8), use_preset(0..8)
 
 # ------------------------------------------------------------ set_camera_vars
-# type -> (Name in get_camera_vars.cgi, min, max)
+# type -> (name in get_camera_vars.cgi, min, max)
 SCAM = {
-    1: ("OSDTimer", 0, 12),     # OSD-Farbe: 0 aus, 1 schwarz … 12 hellblau
+    1: ("OSDTimer", 0, 12),     # OSD color: 0 off, 1 black … 12 light blue
     2: ("brightness", 0, 255),
     3: ("contrast", 0, 255),
     4: ("hue", -128, 127),
@@ -76,40 +76,40 @@ SCAM = {
     6: ("ptzspeed", 1, 100),
     7: ("mirror", 0, 1),
     8: ("flip", 0, 1),
-    9: ("aec_value", 1, 3),     # Netzfrequenz: 1 = 50 Hz, 2 = 60 Hz, 3 = Außenbereich
+    9: ("aec_value", 1, 3),     # mains frequency: 1 = 50 Hz, 2 = 60 Hz, 3 = outdoor
 }
 SCAM_BY_NAME = {name: (t, lo, hi) for t, (name, lo, hi) in SCAM.items()}
 SCAM_ALIASES = {"osd": "OSDTimer", "osd_color": "OSDTimer", "hz": "aec_value",
                 "frequency": "aec_value", "speed": "ptzspeed", "bright": "brightness",
                 "satura": "saturation"}
 
-OSD_COLORS = ["aus", "schwarz", "rot", "grün", "blau", "lila", "grau", "silber",
-              "gelb", "oliv", "türkis", "weiß", "hellblau"]
+OSD_COLORS = ["off", "black", "red", "green", "blue", "purple", "grey", "silver",
+              "yellow", "olive", "teal", "white", "light blue"]
 
-# ------------------------------------------------------------ set_lamp (Status-LED)
+# ------------------------------------------------------------ set_lamp (status LED)
 LAMP_MODES = {
-    0: "blinkt bei Netzverbindung, aus ohne",
-    1: "blinkt bei Netzverbindung, langsam ohne",
-    2: "immer aus",
-    3: "immer an",
+    0: "blinks when network connected, off otherwise",
+    1: "blinks when network connected, slow otherwise",
+    2: "always off",
+    3: "always on",
 }
 
 # ------------------------------------------------------------ get_params?type=N
 PARAM_TYPES = {
-    1: "Benutzer", 2: "Bewegungs-/Alarmmelder", 3: "Audio", 4: "Geräteinfo",
-    5: "FTP", 6: "Multi-Gerät", 7: "Netzwerk/UPnP/DDNS", 8: "WLAN", 9: "Datum/Zeit",
-    10: "PTZ", 11: "E-Mail", 12: "Video", 13: "Netzwerk/DDNS (2)", 14: "SD-Karte",
+    1: "Users", 2: "Motion/alarm detector", 3: "Audio", 4: "Device info",
+    5: "FTP", 6: "Multi-device", 7: "Network/UPnP/DDNS", 8: "WiFi", 9: "Date/time",
+    10: "PTZ", 11: "E-mail", 12: "Video", 13: "Network/DDNS (2)", 14: "SD card",
 }
-# Diese Typen enthalten Passwörter -> werden in Berichten geschwärzt
+# These types contain passwords -> redacted in reports
 SECRET_PARAM_TYPES = {1, 5, 6, 7, 8, 11, 13}
 
-MOTION_LEVELS = {1: "niedrig", 2: "mittel", 3: "hoch", 4: "höher", 5: "am höchsten"}
-MOTION_TIMEOUTS = {0: "dauerhaft", 1: "5 s", 2: "10 s", 3: "15 s", 4: "30 s", 5: "60 s"}
+MOTION_LEVELS = {1: "low", 2: "medium", 3: "high", 4: "higher", 5: "highest"}
+MOTION_TIMEOUTS = {0: "permanent", 1: "5 s", 2: "10 s", 3: "15 s", 4: "30 s", 5: "60 s"}
 
 # ------------------------------------------------------------ Streams
 RTSP_PATH = "/live/av0"   # vlc_video.htm: rtsp://host:port/live/av0?user=..&passwd=..
 
-# Nur lesende CGIs ohne Pflichtparameter – für status --all und probe.
+# Read-only CGIs without mandatory parameters – used by status --all and probe.
 READ_CGIS = [
     "get_status.cgi",
     "get_real_status.cgi",
@@ -124,7 +124,7 @@ READ_CGIS = [
     "check_user.cgi",
 ]
 
-# Diese CGIs führt das Programm nie ohne --force/_force aus.
+# These CGIs are never executed without --force/_force.
 DANGEROUS_CGIS = {
     "reboot.cgi", "restore_factory.cgi", "format_sdc.cgi", "upgrade_firmware.cgi",
     "upgrade_webui.cgi", "set_mac.cgi", "set_users.cgi", "set_wifi.cgi",

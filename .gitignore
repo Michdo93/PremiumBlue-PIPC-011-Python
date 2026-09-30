@@ -1,26 +1,25 @@
 config.yaml
 probe_out/
 probe_out.zip
+
+# Python
 __pycache__/
 *.pyc
-.venv/
+*.pyo
+*.egg-info/
 
+# Virtual environment (python3 -m venv .)
+.venv/
 bin/
 include/
 lib/
 lib64/
 lib64
 pyvenv.cfg
-__pycache__/
-*.pyc
-*.pyo
-
 Include/
 Lib/
 Scripts/
-*.egg-info/
 
-bild.jpg
-bild.JPG
-bild.jpeg
-bild.JPEG
+# Snapshots
+image.jpg
+snapshot.jpg

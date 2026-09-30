@@ -1,13 +1,13 @@
-"""Parser für die JavaScript-Antworten der Apexis-Firmware.
+"""Parser for the JavaScript responses of the Apexis firmware.
 
-Die get_*.cgi-Endpunkte liefern kein JSON, sondern JavaScript, z. B.::
+The get_*.cgi endpoints do not return JSON but JavaScript, e.g.::
 
     var ret_alias_name='IP CAMERA';
     var ret_mvideo_w=1280;
     var ret_presetsta_enable=new Array();
     ret_presetsta_enable[0]=1;
 
-Daraus wird ein dict. Arrays werden zu Listen, Zahlen zu int.
+This is converted into a dict. Arrays become lists, numbers become int.
 """
 
 from __future__ import annotations
@@ -37,24 +37,24 @@ def _value(raw: str) -> Any:
 
 
 def _split(text: str, sep: str) -> list[str]:
-    """Teilt an `sep`, ignoriert dabei Trennzeichen in Strings."""
-    out, cur, quote = [], "", None
+    """Split at `sep`, ignoring separators inside string literals."""
+    parts, current, quote = [], "", None
     for ch in text:
         if quote:
-            cur += ch
+            current += ch
             if ch == quote:
                 quote = None
         elif ch in "'\"":
             quote = ch
-            cur += ch
+            current += ch
         elif ch == sep:
-            out.append(cur)
-            cur = ""
+            parts.append(current)
+            current = ""
         else:
-            cur += ch
-    if cur.strip():
-        out.append(cur)
-    return out
+            current += ch
+    if current.strip():
+        parts.append(current)
+    return parts
 
 
 def _split_args(s: str) -> list[str]:
@@ -62,9 +62,9 @@ def _split_args(s: str) -> list[str]:
 
 
 def parse_js_vars(text: str, strip_prefix: bool = False) -> dict[str, Any]:
-    """Wandelt eine `var x=...;`-Antwort in ein dict um.
+    """Convert a `var x=...;` response into a dict.
 
-    strip_prefix=True entfernt das Präfix ``ret_`` aus den Schlüsseln.
+    strip_prefix=True removes the ``ret_`` prefix from the keys.
     """
     result: dict[str, Any] = {}
     for stmt in _split(text.replace("\r", ""), ";"):

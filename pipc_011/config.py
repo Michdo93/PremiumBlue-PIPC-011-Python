@@ -1,4 +1,4 @@
-"""Konfiguration: Defaults < config.yaml < Umgebungsvariablen < CLI."""
+"""Configuration: defaults < config.yaml < environment variables < CLI."""
 
 from __future__ import annotations
 
@@ -14,23 +14,23 @@ DEFAULTS: dict[str, Any] = {
         "user": "admin",
         "password": "",
         "timeout": 5,
-        "retries": 1,          # Wiederholungen bei Timeout/Verbindungsfehler
-        "invert_v": False,     # Überkopfmontage: oben/unten tauschen
+        "retries": 1,          # retries on timeout/connection error
+        "invert_v": False,     # ceiling mount: swap up/down
         "invert_h": False,
-        "step_seconds": 0.5,   # Dauer einer Einzelschritt-Bewegung (wie mobile.htm)
+        "step_seconds": 0.5,   # duration of a single-step movement (like mobile.htm)
     },
     "mqtt": {
         "host": "localhost",
         "port": 1883,
         "user": "",
         "password": "",
-        "client_id": "wc0030a-bridge",
-        "base_topic": "wc0030a",
-        "poll_fast": 2,        # s – Bewegung/Alarm (get_real_status)
-        "poll_slow": 60,       # s – Geräteinfo, SD-Karte
-        "snapshot_interval": 0,  # s – 0 = nur auf Befehl bzw. bei Bewegung
+        "client_id": "pipc011-bridge",
+        "base_topic": "pipc011",
+        "poll_fast": 2,        # s – motion/alarm (get_real_status)
+        "poll_slow": 60,       # s – device info, SD card
+        "snapshot_interval": 0,  # s – 0 = only on command or on motion
         "snapshot_on_motion": True,
-        "allow_raw": False,    # cmd/raw erlaubt beliebige (nicht gefährliche) CGIs
+        "allow_raw": False,    # cmd/raw allows arbitrary (non-dangerous) CGIs
     },
     "web": {
         "host": "0.0.0.0",
@@ -38,13 +38,13 @@ DEFAULTS: dict[str, Any] = {
     },
 }
 
-ENV = {
-    "WC0030A_HOST": ("camera", "host"),
-    "WC0030A_PORT": ("camera", "port"),
-    "WC0030A_USER": ("camera", "user"),
-    "WC0030A_PASSWORD": ("camera", "password"),
-    "WC0030A_TIMEOUT": ("camera", "timeout"),
-    "WC0030A_RETRIES": ("camera", "retries"),
+ENV_VARS = {
+    "PIPC011_HOST": ("camera", "host"),
+    "PIPC011_PORT": ("camera", "port"),
+    "PIPC011_USER": ("camera", "user"),
+    "PIPC011_PASSWORD": ("camera", "password"),
+    "PIPC011_TIMEOUT": ("camera", "timeout"),
+    "PIPC011_RETRIES": ("camera", "retries"),
     "MQTT_HOST": ("mqtt", "host"),
     "MQTT_PORT": ("mqtt", "port"),
     "MQTT_USER": ("mqtt", "user"),
@@ -54,11 +54,11 @@ ENV = {
 
 
 def _merge(dst: dict, src: dict) -> None:
-    for k, v in src.items():
-        if isinstance(v, dict) and isinstance(dst.get(k), dict):
-            _merge(dst[k], v)
+    for key, value in src.items():
+        if isinstance(value, dict) and isinstance(dst.get(key), dict):
+            _merge(dst[key], value)
         else:
-            dst[k] = v
+            dst[key] = value
 
 
 def _cast(old: Any, new: str) -> Any:
@@ -73,21 +73,21 @@ def _cast(old: Any, new: str) -> Any:
 
 def load(path: str | None = None) -> dict[str, Any]:
     cfg = copy.deepcopy(DEFAULTS)
-    candidates = [path] if path else ["config.yaml", str(Path.home() / ".config/wc0030a/config.yaml"),
-                                      "/etc/wc0030a/config.yaml"]
-    for p in candidates:
-        if p and Path(p).is_file():
-            import yaml  # nur nötig, wenn eine Datei existiert
-            with open(p, encoding="utf-8") as fh:
+    candidates = [path] if path else ["config.yaml", str(Path.home() / ".config/pipc011/config.yaml"),
+                                      "/etc/pipc011/config.yaml"]
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file():
+            import yaml  # only required if a config file exists
+            with open(candidate, encoding="utf-8") as fh:
                 _merge(cfg, yaml.safe_load(fh) or {})
-            cfg["_file"] = p
+            cfg["_file"] = candidate
             break
     else:
         if path:
             raise FileNotFoundError(path)
-    for var, (sec, key) in ENV.items():
+    for var, (section, key) in ENV_VARS.items():
         if var in os.environ:
-            cfg[sec][key] = _cast(cfg[sec][key], os.environ[var])
+            cfg[section][key] = _cast(cfg[section][key], os.environ[var])
     return cfg
 
 

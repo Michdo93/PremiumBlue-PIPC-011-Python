@@ -1,0 +1,4 @@
+OPEN=Motion detected
+CLOSED=idle
+NULL=unknown
+-=unknown

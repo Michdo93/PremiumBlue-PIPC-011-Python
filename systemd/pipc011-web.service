@@ -1,5 +1,5 @@
 [Unit]
-Description=PremiumBlue PIPC-011 Weboberfläche
+Description=PremiumBlue PIPC-011 Web Interface
 After=network-online.target
 Wants=network-online.target
 
@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 User=pi
 WorkingDirectory=/opt/PremiumBlue-PIPC-011-Python
-ExecStart=/opt/PremiumBlue-PIPC-011-Python/.venv/bin/python -m pipc-011 -c /opt/PremiumBlue-PIPC-011-Python/config.yaml web
+ExecStart=/opt/PremiumBlue-PIPC-011-Python/bin/python -m pipc_011 -c /opt/PremiumBlue-PIPC-011-Python/config.yaml web
 Restart=always
 RestartSec=5
 

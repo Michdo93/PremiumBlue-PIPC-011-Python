@@ -1,4 +1,4 @@
-"""Flask-Weboberfläche: Live-Bild, PTZ (gedrückt halten), Presets, Status."""
+"""Flask web interface: live image, PTZ (press and hold), presets, status."""
 
 from __future__ import annotations
 
@@ -14,11 +14,11 @@ from . import commands as C
 log = logging.getLogger(__name__)
 
 PAGE = r"""<!doctype html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WC0030A</title>
+<title>PIPC-011</title>
 <style>
   :root { --bg:#12161b; --panel:#1b2128; --line:#2b333d; --text:#e6e9ed; --dim:#8b95a1;
           --act:#3d8bfd; --warn:#e5534b; --ok:#3fb950; }
@@ -55,55 +55,55 @@ PAGE = r"""<!doctype html>
 </style>
 </head>
 <body>
-<header><h1>LogiLink WC0030A</h1><span id="model"></span></header>
+<header><h1>PremiumBlue PIPC-011</h1><span id="model"></span></header>
 <main>
   <div>
-    <div class="video"><img src="/video_feed" alt="Live-Bild der Kamera"><span id="motion" class="badge">Keine Bewegung</span></div>
+    <div class="video"><img src="/video_feed" alt="Live camera image"><span id="motion" class="badge">No motion</span></div>
     <div class="row" style="margin-top:.7rem">
-      <button onclick="location.href='/snapshot'">Schnappschuss herunterladen</button>
+      <button onclick="location.href='/snapshot'">Download snapshot</button>
     </div>
     <div id="msg"></div>
   </div>
   <div>
     <section>
-      <h2>Schwenken und neigen</h2>
+      <h2>Pan and tilt</h2>
       <div class="pad">
-        <button data-dir="up_left" aria-label="Links oben">↖</button>
-        <button data-dir="up" aria-label="Oben">▲</button>
-        <button data-dir="up_right" aria-label="Rechts oben">↗</button>
-        <button data-dir="left" aria-label="Links">◀</button>
-        <button onclick="api('/api/ptz/center')" aria-label="Mitte">●</button>
-        <button data-dir="right" aria-label="Rechts">▶</button>
-        <button data-dir="down_left" aria-label="Links unten">↙</button>
-        <button data-dir="down" aria-label="Unten">▼</button>
-        <button data-dir="down_right" aria-label="Rechts unten">↘</button>
+        <button data-dir="up_left" aria-label="Up left">↖</button>
+        <button data-dir="up" aria-label="Up">▲</button>
+        <button data-dir="up_right" aria-label="Up right">↗</button>
+        <button data-dir="left" aria-label="Left">◀</button>
+        <button onclick="api('/api/ptz/center')" aria-label="Center">●</button>
+        <button data-dir="right" aria-label="Right">▶</button>
+        <button data-dir="down_left" aria-label="Down left">↙</button>
+        <button data-dir="down" aria-label="Down">▼</button>
+        <button data-dir="down_right" aria-label="Down right">↘</button>
       </div>
-      <p class="hint">Gedrückt halten zum Fahren, loslassen zum Anhalten.</p>
+      <p class="hint">Press and hold to move, release to stop.</p>
     </section>
     <section>
-      <h2>Positionen</h2>
+      <h2>Presets</h2>
       <div class="row" id="presets"></div>
-      <p class="hint"><label><input type="checkbox" id="saveMode"> Aktuelle Position beim Klick speichern</label></p>
+      <p class="hint"><label><input type="checkbox" id="saveMode"> Save current position on click</label></p>
     </section>
     <section>
-      <h2>Patrouille und Schaltausgang</h2>
+      <h2>Patrol and relay output</h2>
       <div class="row">
         <button onclick="api('/api/patrol/h/start')">Horizontal</button>
-        <button onclick="api('/api/patrol/v/start')">Vertikal</button>
-        <button onclick="api('/api/patrol/stop')">Anhalten</button>
+        <button onclick="api('/api/patrol/v/start')">Vertical</button>
+        <button onclick="api('/api/patrol/stop')">Stop</button>
       </div>
       <div class="row" style="margin-top:.4rem">
-        <button onclick="api('/api/relay/on')">Relais an</button>
-        <button onclick="api('/api/relay/off')">Relais aus</button>
+        <button onclick="api('/api/relay/on')">Relay on</button>
+        <button onclick="api('/api/relay/off')">Relay off</button>
       </div>
     </section>
     <section>
-      <h2>Bild und Geschwindigkeit</h2>
+      <h2>Image and speed</h2>
       <div id="image"></div>
       <div class="row" style="margin-top:.4rem">
-        <label><input type="checkbox" id="img_mirror"> Spiegeln</label>
-        <label><input type="checkbox" id="img_flip"> Drehen</label>
-        <label>Netz <select id="img_aec_value"><option value="1">50 Hz</option><option value="2">60 Hz</option><option value="3">Außen</option></select></label>
+        <label><input type="checkbox" id="img_mirror"> Mirror</label>
+        <label><input type="checkbox" id="img_flip"> Flip</label>
+        <label>Mains <select id="img_aec_value"><option value="1">50 Hz</option><option value="2">60 Hz</option><option value="3">Outdoor</option></select></label>
       </div>
     </section>
     <section>
@@ -119,11 +119,11 @@ async function api(url){
   try {
     const r = await fetch(url, {method:'POST'});
     const j = await r.json();
-    show(j.ok ? '' : (j.error || 'Befehl fehlgeschlagen'), !j.ok);
+    show(j.ok ? '' : (j.error || 'Command failed'), !j.ok);
     return j;
-  } catch(e){ show('Server nicht erreichbar', true); }
+  } catch(e){ show('Server unreachable', true); }
 }
-// Gedrückt halten
+// Press and hold
 document.querySelectorAll('[data-dir]').forEach(b => {
   let active = false;
   const start = e => { e.preventDefault(); active = true; b.classList.add('on'); b.setPointerCapture?.(e.pointerId); api('/api/ptz/'+b.dataset.dir+'/start'); };
@@ -140,14 +140,14 @@ fetch('/api/presets').then(r=>r.json()).then(j => {
     const b = document.createElement('button'); b.textContent = i;
     b.onclick = () => {
       const save = document.getElementById('saveMode').checked;
-      api('/api/preset/'+i+(save?'/set':'/goto')).then(()=>{ if(save) show('Position '+i+' gespeichert'); });
+      api('/api/preset/'+i+(save?'/set':'/goto')).then(()=>{ if(save) show('Preset '+i+' saved'); });
     };
     box.appendChild(b);
   }
 });
-// Bildparameter (Namen wie in get_camera_vars.cgi)
-const SLIDERS = [['brightness','Helligkeit',0,255],['contrast','Kontrast',0,255],
-                 ['hue','Farbton',-128,127],['saturation','Sättigung',0,200],['ptzspeed','PTZ-Tempo',1,100]];
+// Image parameters (names as in get_camera_vars.cgi)
+const SLIDERS = [['brightness','Brightness',0,255],['contrast','Contrast',0,255],
+                 ['hue','Hue',-128,127],['saturation','Saturation',0,200],['ptzspeed','PTZ speed',1,100]];
 fetch('/api/camera_vars').then(r=>r.json()).then(j => {
   if(!j.ok){ show(j.error, true); return; }
   const v = j.vars, box = document.getElementById('image');
@@ -177,14 +177,14 @@ async function poll(){
       document.getElementById('model').textContent = (st.prot_mode||'') + ' · FW ' + (st.server_version||'');
       const m = document.getElementById('motion');
       const moving = +s.realstatus_motion === 1;
-      m.textContent = moving ? 'Bewegung erkannt' : 'Keine Bewegung';
+      m.textContent = moving ? 'Motion detected' : 'No motion';
       m.className = 'badge' + (moving ? ' motion' : '');
       const rows = {
-        'Auflösung': s.realstatus_videoW + '×' + s.realstatus_videoH,
-        'Bildrate': s.realstatus_mrate + ' fps',
-        'IP-Adresse': s.realstatus_ipaddr,
-        'Alarm': +s.realstatus_alstatus ? 'aktiv' : 'aus',
-        'SD-Karte': j.sd ? Math.round(j.sd.sdc_status_freespace/1024) + ' MB frei von ' + Math.round(j.sd.sdc_status_allspace/1024) + ' MB' : '–',
+        'Resolution': s.realstatus_videoW + '×' + s.realstatus_videoH,
+        'Frame rate': s.realstatus_mrate + ' fps',
+        'IP address': s.realstatus_ipaddr,
+        'Alarm': +s.realstatus_alstatus ? 'active' : 'off',
+        'SD card': j.sd ? Math.round(j.sd.sdc_status_freespace/1024) + ' MB free of ' + Math.round(j.sd.sdc_status_allspace/1024) + ' MB' : '–',
       };
       document.getElementById('status').innerHTML = Object.entries(rows).map(([k,v]) => '<dt>'+k+'</dt><dd>'+v+'</dd>').join('');
     }
@@ -197,13 +197,13 @@ poll();
 </html>"""
 
 
-def create_app(cam: Camera) -> Flask:
+def create_app(camera: Camera) -> Flask:
     app = Flask(__name__)
     cache: dict = {}
 
-    def run(fn, *a):
+    def run(fn, *args):
         try:
-            fn(*a)
+            fn(*args)
             return jsonify(ok=True)
         except (CameraError, ValueError) as exc:
             log.warning("%s", exc)
@@ -217,8 +217,8 @@ def create_app(cam: Camera) -> Flask:
     def video_feed():
         def gen():
             try:
-                for jpg in cam.mjpeg_frames():
-                    yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + jpg + b"\r\n"
+                for frame in camera.mjpeg_frames():
+                    yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
             except CameraError as exc:
                 log.warning("Stream: %s", exc)
         return Response(gen(), mimetype="multipart/x-mixed-replace; boundary=frame")
@@ -226,7 +226,7 @@ def create_app(cam: Camera) -> Flask:
     @app.get("/snapshot")
     def snapshot():
         try:
-            data = cam.snapshot()
+            data = camera.snapshot()
         except CameraError as exc:
             return str(exc), 502
         inline = request.args.get("inline") is not None
@@ -236,72 +236,72 @@ def create_app(cam: Camera) -> Flask:
     @app.post("/api/ptz/<direction>/<action>")
     def ptz(direction, action):
         if direction not in C.MOVE:
-            return jsonify(ok=False, error="unbekannte Richtung"), 400
-        fn = {"start": cam.move, "stop": cam.stop, "step": cam.step}.get(action)
+            return jsonify(ok=False, error="unknown direction"), 400
+        fn = {"start": camera.move, "stop": camera.stop, "step": camera.step}.get(action)
         if not fn:
-            return jsonify(ok=False, error="Aktion start|stop|step"), 400
+            return jsonify(ok=False, error="action must be start|stop|step"), 400
         if action == "step":  # optional ?count=N
             try:
                 count = int(request.args.get("count", 1))
             except ValueError:
-                return jsonify(ok=False, error="count muss eine ganze Zahl sein"), 400
+                return jsonify(ok=False, error="count must be an integer"), 400
             return run(fn, direction, count)
         return run(fn, direction)
 
     @app.post("/api/ptz/center")
     def center():
-        return run(cam.center)
+        return run(camera.center)
 
     @app.post("/api/ptz/stop")
     def stop():
-        return run(cam.stop)
+        return run(camera.stop)
 
     @app.get("/api/presets")
     def presets():
-        return jsonify(count=cam.preset_count())
+        return jsonify(count=camera.preset_count())
 
-    @app.post("/api/preset/<int:n>/<action>")
-    def preset(n, action):
-        fn = {"goto": cam.preset_goto, "set": cam.preset_set}.get(action)
+    @app.post("/api/preset/<int:number>/<action>")
+    def preset(number, action):
+        fn = {"goto": camera.preset_goto, "set": camera.preset_set}.get(action)
         if not fn:
-            return jsonify(ok=False, error="Aktion goto|set"), 400
-        return run(fn, n)
+            return jsonify(ok=False, error="action must be goto|set"), 400
+        return run(fn, number)
 
     @app.post("/api/patrol/<axis>/start")
     def patrol(axis):
-        def go():
-            cam.patrol_stop()
-            cam.patrol(axis, True)
-        return run(go)
+        def start_patrol():
+            camera.patrol_stop()
+            camera.patrol(axis, True)
+        return run(start_patrol)
 
     @app.post("/api/patrol/stop")
     def patrol_stop():
-        return run(cam.patrol_stop)
+        return run(camera.patrol_stop)
 
     @app.post("/api/relay/<state>")
     def relay(state):
-        return run(cam.io_output, state == "on")
+        return run(camera.io_output, state == "on")
 
     @app.get("/api/camera_vars")
     def camera_vars():
         try:
-            return jsonify(ok=True, vars=cam.camera_vars())
+            return jsonify(ok=True, vars=camera.camera_vars())
         except CameraError as exc:
             return jsonify(ok=False, error=str(exc)), 502
 
     @app.post("/api/camera_vars/<name>/<int(signed=True):value>")
     def set_camera_var(name, value):
-        return run(cam.set_camera_var, name, int(value))
+        return run(camera.set_camera_var, name, int(value))
 
     @app.get("/api/status")
     def status():
         try:
             if "info" not in cache:
-                cache["info"] = cam.status()
-            out = {"ok": True, "status": cam.real_status(), "info": cache["info"]}
+                cache["info"] = camera.status()
+            out = {"ok": True, "status": camera.real_status(), "info": cache["info"]}
             if time.monotonic() - cache.get("sd_t", -1e9) > 60:
                 try:
-                    cache["sd"] = cam.sd_status()
+                    cache["sd"] = camera.sd_status()
                 except CameraError:
                     cache["sd"] = None
                 cache["sd_t"] = time.monotonic()

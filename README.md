@@ -11,7 +11,7 @@ The PremiumBlue PIPC-011 is an OEM camera based on the Apexis platform. In `get_
 ### Linux / macOS
 
 ```bash
-git clone [https://github.com/Michdo93/PremiumBlue-PIPC-011-Python.git](https://github.com/Michdo93/PremiumBlue-PIPC-011-Python.git)
+git clone https://github.com/Michdo93/PremiumBlue-PIPC-011-Python.git
 cd PremiumBlue-PIPC-011-Python
 python3 -m venv . && source ./bin/activate
 pip install -r requirements.txt
@@ -21,7 +21,7 @@ cp config.example.yaml config.yaml   # Set your camera's IP and password
 ### Windows (PowerShell)
 
 ```powershell
-git clone [https://github.com/Michdo93/PremiumBlue-PIPC-011-Python.git](https://github.com/Michdo93/PremiumBlue-PIPC-011-Python.git)
+git clone https://github.com/Michdo93/PremiumBlue-PIPC-011-Python.git
 cd PremiumBlue-PIPC-011-Python
 python -m venv .; .\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -65,7 +65,6 @@ python -m pipc_011 raw get_camera_vars.cgi
 python -m pipc_011 probe                 # Deep-probe camera features and endpoints
 python -m pipc_011 web                   # Start web interface on port 5000
 python -m pipc_011 mqtt                  # Start MQTT bridge
-
 ```
 
 Legacy argument syntax is supported: `python3 camera_control.py --cmd preset1_get`, `--snapshot image.jpg`. Running without arguments defaults to launching the web interface.
@@ -107,7 +106,6 @@ with open("snapshot.jpg", "wb") as f:
 # Stream frames (e.g., for OpenCV or AI processing)
 for frame in cam.mjpeg_frames():
     process_frame(frame)
-
 ```
 
 ---
@@ -128,12 +126,14 @@ Example configuration files (Things, Items, Sitemap, MAP transformations, JS rul
 | `pipc011/state/resolution`, `framerate`, `ip` | → | Runtime state |
 | `pipc011/state/model`, `firmware`, `webui`, `alias`, `lamp` | → | Device Info (Polled every 60s) |
 | `pipc011/state/sd_ok`, `sd_free_mb`, `sd_total_mb` | → | SD Card metrics |
+| `pipc011/state/motion/enable`, `motion/level`, `motion/timeout` | → | Motion detector settings of the camera |
 | `pipc011/state/presets` | → | Available presets count (9) |
 | `pipc011/state/relay`, `patrol` | → | Last sent state (Camera does not return status) |
 | `pipc011/state/camera/<name>` | → | Camera image attributes from `get_camera_vars.cgi` |
 | `pipc011/state/json/<cgi>` | → | Complete JSON payload response |
 | `pipc011/state/last_error` | → | Last reported error string |
 | `pipc011/snapshot` | → | Raw JPEG bytes (Image channel), updated on demand or motion |
+| `pipc011/state/snapshot_time` | → | Timestamp of the last snapshot (ISO 8601) |
 | `pipc011/cmd/ptz` | ← | `UP` `DOWN` `LEFT` `RIGHT` `UP_LEFT` `UP_RIGHT` `DOWN_LEFT` `DOWN_RIGHT` `CENTER` `STOP` – Single step (`LEFT:3` = 3 steps) |
 | `pipc011/cmd/ptz/move` | ← | Direction → Start continuous drive (`STOP` halts) |
 | `pipc011/cmd/preset` | ← | Jump to Preset `1`–`9` |
@@ -143,10 +143,14 @@ Example configuration files (Things, Items, Sitemap, MAP transformations, JS rul
 | `pipc011/cmd/snapshot` | ← | Any payload triggers a new snapshot |
 | `pipc011/cmd/refresh` | ← | Force state refresh |
 | `pipc011/cmd/camera_vars` | ← | JSON payload, e.g., `{"brightness": 140, "flip": 1}` |
+| `pipc011/cmd/camera/<name>` | ← | Single image parameter, e.g. `camera/brightness` = `140`, `camera/flip` = `ON` |
 | `pipc011/cmd/motion/enable` | ← | `ON` / `OFF` motion detection |
 | `pipc011/cmd/motion/level` | ← | Sensitivity `1`–`5` |
+| `pipc011/cmd/motion/timeout` | ← | Alarm duration `0`–`5` (0 permanent, 1 = 5 s … 5 = 60 s) |
+| `pipc011/cmd/cruise` | ← | Start cruise `0`–`9`, `STOP` halts |
 | `pipc011/cmd/lamp` | ← | `0`–`3` Status LED state |
 | `pipc011/cmd/reboot` | ← | `REBOOT` |
+| `pipc011/cmd/raw` | ← | JSON `{"cgi": "…", "params": {…}}` – only if `mqtt.allow_raw: true`, result on `pipc011/raw/result` |
 
 ### Video Streaming in openHAB
 
@@ -161,6 +165,8 @@ sudo cp -r . /opt/PremiumBlue-PIPC-011-Python
 sudo cp systemd/pipc011-mqtt.service systemd/pipc011-web.service /etc/systemd/system/
 sudo systemctl enable --now pipc011-mqtt pipc011-web
 ```
+
+The service files expect the virtual environment created during installation (`python3 -m venv .`) at `/opt/PremiumBlue-PIPC-011-Python/bin/python` and run as user `pi` – adjust `User=` and paths if necessary.
 
 ---
 
@@ -238,5 +244,3 @@ Legacy Apexis firmware variants harbor unpatched security vulnerabilities (e.g.,
 * Do **not** port-forward HTTP or RTSP endpoints to the public internet.
 * Disable UPnP, DDNS (`oipcam.com`), and P2P options within the camera config.
 * Access streams externally **only** via protected proxies (such as openHAB, Home Assistant, or WireGuard VPN).
-
-```

@@ -1,33 +1,33 @@
-"""MQTT-Brücke: Kamera-Status publizieren, Befehle entgegennehmen.
+"""MQTT bridge: publish camera state, receive commands.
 
-Topic-Schema (base = mqtt.base_topic, Default "wc0030a"):
+Topic scheme (base = mqtt.base_topic, default "pipc011"):
 
   base/status                  online | offline               (retained, LWT)
-  base/state/<key>             einzelne Zustände              (retained)
-  base/state/json/<cgi>        komplette Antwort als JSON     (retained)
-  base/snapshot                JPEG-Bytes                     (retained)
+  base/state/<key>             individual states              (retained)
+  base/state/json/<cgi>        complete response as JSON      (retained)
+  base/snapshot                JPEG bytes                     (retained)
 
   base/cmd/ptz                 UP DOWN LEFT RIGHT UP_LEFT UP_RIGHT DOWN_LEFT
-                               DOWN_RIGHT CENTER STOP  -> Einzelschritt,
-                               "LEFT:3" -> drei Einzelschritte
-  base/cmd/ptz/move            Richtung -> Dauerbewegung, STOP beendet
-  base/cmd/preset              1..9 -> Preset anfahren
-  base/cmd/preset/set          1..9 -> aktuelle Position speichern
+                               DOWN_RIGHT CENTER STOP  -> single step,
+                               "LEFT:3" -> three single steps
+  base/cmd/ptz/move            direction -> continuous movement, STOP ends it
+  base/cmd/preset              1..9 -> go to preset
+  base/cmd/preset/set          1..9 -> save current position
   base/cmd/patrol              HORIZONTAL | VERTICAL | STOP
   base/cmd/relay               ON | OFF
-  base/cmd/snapshot            beliebig -> neues Bild auf base/snapshot
-  base/cmd/refresh             beliebig -> alle Zustände neu lesen
-  base/cmd/camera_vars         JSON {"name": wert, ...} -> set_camera_vars.cgi
-  base/cmd/camera/<name>       Einzelwert, z. B. camera/brightness = 140, camera/flip = ON
+  base/cmd/snapshot            any payload -> new image on base/snapshot
+  base/cmd/refresh             any payload -> re-read all states
+  base/cmd/camera_vars         JSON {"name": value, ...} -> set_camera_vars.cgi
+  base/cmd/camera/<name>       single value, e.g. camera/brightness = 140, camera/flip = ON
                                (brightness contrast hue saturation ptzspeed mirror flip
-                                OSDTimer aec_value; Aliase: osd, hz, speed)
-  base/cmd/lamp                0..3 Status-LED
-  base/cmd/motion/enable       ON | OFF  Bewegungserkennung der Kamera
-  base/cmd/motion/level        1..5      Empfindlichkeit
-  base/cmd/motion/timeout      0..5      Alarmdauer (0 dauerhaft, 1=5 s … 5=60 s)
-  base/cmd/cruise              Index -> Kurs starten, STOP
+                                OSDTimer aec_value; aliases: osd, hz, speed)
+  base/cmd/lamp                0..3 status LED
+  base/cmd/motion/enable       ON | OFF  camera motion detection
+  base/cmd/motion/level        1..5      sensitivity
+  base/cmd/motion/timeout      0..5      alarm duration (0 permanent, 1=5 s … 5=60 s)
+  base/cmd/cruise              index -> start cruise, STOP
   base/cmd/reboot              REBOOT
-  base/cmd/raw                 JSON {"cgi": "...", "params": {...}} (nur allow_raw)
+  base/cmd/raw                 JSON {"cgi": "...", "params": {...}} (allow_raw only)
 """
 
 from __future__ import annotations
@@ -50,16 +50,16 @@ log = logging.getLogger(__name__)
 ONOFF = {0: "OFF", 1: "ON"}
 
 
-def _onoff(v: Any) -> str:
+def _onoff(value: Any) -> str:
     try:
-        return "ON" if int(v) else "OFF"
+        return "ON" if int(value) else "OFF"
     except (TypeError, ValueError):
         return "OFF"
 
 
 class Bridge:
-    def __init__(self, cam: Camera, cfg: dict[str, Any]):
-        self.cam = cam
+    def __init__(self, camera: Camera, cfg: dict[str, Any]):
+        self.camera = camera
         self.cfg = cfg
         self.base = cfg["base_topic"].rstrip("/")
         self.jobs: "queue.Queue[tuple[str, Callable[[], None]]]" = queue.Queue()
@@ -79,7 +79,7 @@ class Bridge:
         self.client.on_message = self._on_message
         self.client.reconnect_delay_set(1, 30)
 
-    # ----------------------------------------------------------- publizieren
+    # ----------------------------------------------------------- Publishing
     def pub(self, key: str, value: Any, retain: bool = True, force: bool = False) -> None:
         topic = f"{self.base}/{key}"
         if isinstance(value, (dict, list)):
@@ -99,18 +99,18 @@ class Bridge:
             self._online = online
             self.pub("status", "online" if online else "offline", force=True)
 
-    # ------------------------------------------------------------- MQTT-Callbacks
+    # ------------------------------------------------------------- MQTT callbacks
     def _on_connect(self, client, userdata, flags, rc, properties=None):
-        log.info("MQTT verbunden (rc=%s)", rc)
+        log.info("MQTT connected (rc=%s)", rc)
         client.subscribe(f"{self.base}/cmd/#", qos=1)
         self._last.clear()
         self._online = None
         self.jobs.put(("refresh", self.refresh_all))
 
     def _on_message(self, client, userdata, msg):
-        sub = msg.topic[len(self.base) + 5:]  # nach "base/cmd/"
+        sub = msg.topic[len(self.base) + 5:]  # after "base/cmd/"
         payload = msg.payload.decode("utf-8", "replace").strip()
-        log.info("Befehl %s = %s", sub, payload)
+        log.info("Command %s = %s", sub, payload)
         try:
             job = self._dispatch(sub, payload)
         except (ValueError, KeyError) as exc:
@@ -120,46 +120,46 @@ class Bridge:
             self.jobs.put((sub, job))
 
     def _dispatch(self, sub: str, payload: str) -> Callable[[], None] | None:
-        cam, up = self.cam, payload.upper()
+        camera, up = self.camera, payload.upper()
         if sub == "ptz":
             if up == "CENTER":
-                return cam.center
+                return camera.center
             if up == "STOP":
-                return cam.stop
-            d, _, n = up.lower().partition(":")   # "LEFT" oder "LEFT:3"
-            if d not in C.MOVE:
-                raise ValueError(f"Richtung '{payload}' unbekannt")
-            count = int(n) if n else 1
+                return camera.stop
+            direction, _, number = up.lower().partition(":")   # "LEFT" or "LEFT:3"
+            if direction not in C.MOVE:
+                raise ValueError(f"Direction '{payload}' unknown")
+            count = int(number) if number else 1
             if not 1 <= count <= C.STEP_MAX_COUNT:
-                raise ValueError(f"Anzahl {count} außerhalb 1..{C.STEP_MAX_COUNT}")
-            return lambda: cam.step(d, count)
+                raise ValueError(f"Count {count} outside 1..{C.STEP_MAX_COUNT}")
+            return lambda: camera.step(direction, count)
         if sub == "ptz/move":
             if up == "STOP":
-                return cam.stop
-            d = up.lower()
-            if d not in C.MOVE:
-                raise ValueError(f"Richtung '{payload}' unbekannt")
-            return lambda: cam.move(d)
+                return camera.stop
+            direction = up.lower()
+            if direction not in C.MOVE:
+                raise ValueError(f"Direction '{payload}' unknown")
+            return lambda: camera.move(direction)
         if sub == "preset":
-            n = int(float(payload))
-            return lambda: cam.preset_goto(n)
+            number = int(float(payload))
+            return lambda: camera.preset_goto(number)
         if sub == "preset/set":
-            n = int(float(payload))
-            return lambda: cam.preset_set(n)
+            number = int(float(payload))
+            return lambda: camera.preset_set(number)
         if sub == "patrol":
             def patrol():
-                cam.patrol_stop()
+                camera.patrol_stop()
                 if up.startswith("H"):
-                    cam.patrol("h", True)
+                    camera.patrol("h", True)
                 elif up.startswith("V"):
-                    cam.patrol("v", True)
+                    camera.patrol("v", True)
                 self.state("patrol", {"H": "HORIZONTAL", "V": "VERTICAL"}.get(up[:1], "STOP"))
             return patrol
         if sub == "relay":
             on = up in ("ON", "1", "TRUE")
 
             def relay():
-                cam.io_output(on)
+                camera.io_output(on)
                 self.state("relay", "ON" if on else "OFF")
             return relay
         if sub == "snapshot":
@@ -169,23 +169,23 @@ class Bridge:
         if sub == "camera_vars":
             values = json.loads(payload)
 
-            def setvars():
-                cam.set_camera_vars(**values)
+            def set_vars():
+                camera.set_camera_vars(**values)
                 self.poll_camera_vars()
-            return setvars
+            return set_vars
         if sub.startswith("camera/"):
             name = Camera._scam_name(sub.split("/", 1)[1])
             value = int(up == "ON") if up in ("ON", "OFF") else int(float(payload))
 
-            def setone():
-                cam.set_camera_var(name, value)
+            def set_single_var():
+                camera.set_camera_var(name, value)
                 self.poll_camera_vars()
-            return setone
+            return set_single_var
         if sub == "lamp":
             mode = int(float(payload))
 
             def lamp():
-                cam.set_lamp(mode)
+                camera.set_lamp(mode)
                 self.state("lamp", mode)
             return lamp
         if sub in ("motion/enable", "motion/level", "motion/timeout"):
@@ -194,98 +194,98 @@ class Bridge:
             value = int(up == "ON") if up in ("ON", "OFF") else int(float(payload))
 
             def motion():
-                cam.set_motion(**{key: value})
+                camera.set_motion(**{key: value})
                 self.poll_motion_settings()
             return motion
         if sub == "cruise":
             if up == "STOP":
-                return cam.cruise_stop
-            idx = int(float(payload))
-            return lambda: cam.cruise_start(idx)
+                return camera.cruise_stop
+            index = int(float(payload))
+            return lambda: camera.cruise_start(index)
         if sub == "reboot":
             if up != "REBOOT":
-                raise ValueError("Payload muss REBOOT lauten")
-            return cam.reboot
+                raise ValueError("Payload must be REBOOT")
+            return camera.reboot
         if sub == "raw":
             if not self.cfg.get("allow_raw"):
-                raise ValueError("cmd/raw ist deaktiviert (mqtt.allow_raw)")
+                raise ValueError("cmd/raw is disabled (mqtt.allow_raw)")
             req = json.loads(payload)
 
             def raw():
-                self.pub("raw/result", cam.raw(req["cgi"], **req.get("params", {})), retain=False, force=True)
+                self.pub("raw/result", camera.raw(req["cgi"], **req.get("params", {})), retain=False, force=True)
             return raw
-        raise ValueError(f"unbekannter Befehl {sub}")
+        raise ValueError(f"unknown command {sub}")
 
     # ------------------------------------------------------------- Polling
     def poll_fast(self) -> None:
-        rs = self.cam.real_status()
+        real_status = self.camera.real_status()
         self.set_online(True)
-        motion = _onoff(rs.get("realstatus_motion"))
+        motion = _onoff(real_status.get("realstatus_motion"))
         self.state("motion", motion)
-        self.state("alarm", _onoff(rs.get("realstatus_alstatus")))
-        self.state("input1", _onoff(rs.get("realstatus_inputal1")))
-        self.state("input2", _onoff(rs.get("realstatus_inputal2")))
-        self.state("sd_alarm", _onoff(rs.get("realstatus_sdalarm")))
-        self.state("framerate", rs.get("realstatus_mrate", ""))
-        w, h = rs.get("realstatus_videoW"), rs.get("realstatus_videoH")
-        if w and h:
-            self.state("resolution", f"{w}x{h}")
-        self.state("ip", rs.get("realstatus_ipaddr", ""))
-        self.state("json/real_status", rs)
+        self.state("alarm", _onoff(real_status.get("realstatus_alstatus")))
+        self.state("input1", _onoff(real_status.get("realstatus_inputal1")))
+        self.state("input2", _onoff(real_status.get("realstatus_inputal2")))
+        self.state("sd_alarm", _onoff(real_status.get("realstatus_sdalarm")))
+        self.state("framerate", real_status.get("realstatus_mrate", ""))
+        width, height = real_status.get("realstatus_videoW"), real_status.get("realstatus_videoH")
+        if width and height:
+            self.state("resolution", f"{width}x{height}")
+        self.state("ip", real_status.get("realstatus_ipaddr", ""))
+        self.state("json/real_status", real_status)
         is_motion = motion == "ON"
         if is_motion and not self._motion and self.cfg.get("snapshot_on_motion"):
             self.jobs.put(("snapshot", self.publish_snapshot))
         self._motion = is_motion
 
     def poll_slow(self) -> None:
-        st = self.cam.status()
-        self.state("model", st.get("prot_mode", ""))
-        self.state("firmware", st.get("server_version", ""))
-        self.state("webui", st.get("client_version", ""))
-        self.state("alias", st.get("alias_name", ""))
-        self.state("lamp", st.get("lamp_status", ""))
-        self.state("json/status", st)
+        device = self.camera.status()
+        self.state("model", device.get("prot_mode", ""))
+        self.state("firmware", device.get("server_version", ""))
+        self.state("webui", device.get("client_version", ""))
+        self.state("alias", device.get("alias_name", ""))
+        self.state("lamp", device.get("lamp_status", ""))
+        self.state("json/status", device)
         try:
-            sd = self.cam.sd_status()
+            sd = self.camera.sd_status()
             self.state("sd_ok", _onoff(sd.get("sdc_status_normal")))
             self.state("sd_total_mb", round(int(sd.get("sdc_status_allspace", 0)) / 1024))
             self.state("sd_free_mb", round(int(sd.get("sdc_status_freespace", 0)) / 1024))
         except (CameraError, ValueError) as exc:
-            log.debug("SD-Status: %s", exc)
-        self.state("presets", self.cam.preset_count())
+            log.debug("SD status: %s", exc)
+        self.state("presets", self.camera.preset_count())
         self.poll_camera_vars()
         self.poll_motion_settings()
 
     def poll_motion_settings(self) -> None:
         try:
-            m = self.cam.motion_settings()
+            settings = self.camera.motion_settings()
         except CameraError as exc:
             log.debug("motion_settings: %s", exc)
             return
-        if "motion_enable" in m:
-            self.state("motion/enable", _onoff(m["motion_enable"]))
-        if "motion_level" in m:
-            self.state("motion/level", m["motion_level"])
-        if "mtimeout" in m:
-            self.state("motion/timeout", m["mtimeout"])
+        if "motion_enable" in settings:
+            self.state("motion/enable", _onoff(settings["motion_enable"]))
+        if "motion_level" in settings:
+            self.state("motion/level", settings["motion_level"])
+        if "mtimeout" in settings:
+            self.state("motion/timeout", settings["mtimeout"])
 
     def poll_camera_vars(self) -> None:
         try:
-            cv = self.cam.camera_vars()
+            camera_vars = self.camera.camera_vars()
         except CameraError as exc:
             log.debug("camera_vars: %s", exc)
             return
-        self.state("json/camera_vars", cv)
-        for k, v in cv.items():
-            if not k.endswith("result"):
-                self.state(f"camera/{k}", v)
+        self.state("json/camera_vars", camera_vars)
+        for key, value in camera_vars.items():
+            if not key.endswith("result"):
+                self.state(f"camera/{key}", value)
 
     def refresh_all(self) -> None:
         self.poll_fast()
         self.poll_slow()
 
     def publish_snapshot(self) -> None:
-        self.pub("snapshot", self.cam.snapshot(), retain=True)
+        self.pub("snapshot", self.camera.snapshot(), retain=True)
         self.state("snapshot_time", time.strftime("%Y-%m-%dT%H:%M:%S"), force=True)
 
     # ------------------------------------------------------------- Threads
@@ -313,11 +313,11 @@ class Bridge:
             if now >= next_slow:
                 self.jobs.put(("poll_slow", self.poll_slow))
                 next_slow = now + float(self.cfg["poll_slow"])
-            iv = float(self.cfg.get("snapshot_interval") or 0)
-            if iv > 0 and now >= next_snap:
+            interval = float(self.cfg.get("snapshot_interval") or 0)
+            if interval > 0 and now >= next_snap:
                 self.jobs.put(("snapshot", self.publish_snapshot))
-                next_snap = now + iv
-            # Warteschlange nicht volllaufen lassen, wenn die Kamera hängt
+                next_snap = now + interval
+            # do not let the queue fill up if the camera hangs
             while self.jobs.qsize() > 20:
                 try:
                     self.jobs.get_nowait()
@@ -330,15 +330,15 @@ class Bridge:
         self.client.loop_start()
         threads = [threading.Thread(target=self._worker, daemon=True, name="worker"),
                    threading.Thread(target=self._poller, daemon=True, name="poller")]
-        for t in threads:
-            t.start()
+        for thread in threads:
+            thread.start()
 
         def _stop(*_):
             self.stop_event.set()
         signal.signal(signal.SIGINT, _stop)
         signal.signal(signal.SIGTERM, _stop)
-        log.info("Bridge läuft: Kamera %s, Broker %s:%s, Basis-Topic '%s'",
-                 self.cam.host, self.cfg["host"], self.cfg["port"], self.base)
+        log.info("Bridge running: camera %s, broker %s:%s, base topic '%s'",
+                 self.camera.host, self.cfg["host"], self.cfg["port"], self.base)
         while not self.stop_event.is_set():
             self.stop_event.wait(1)
         self.client.publish(f"{self.base}/status", "offline", qos=1, retain=True).wait_for_publish(2)

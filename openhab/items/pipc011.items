@@ -1,0 +1,37 @@
+Group    gCam             "Camera PIPC-011"              <camera>
+
+Contact  Cam_Motion       "Motion [MAP(pipc011_motion.map):%s]"  <motion>       (gCam) { channel="mqtt:topic:camBroker:pipc011:motion" }
+Contact  Cam_Alarm        "Alarm [%s]"                           <siren>        (gCam) { channel="mqtt:topic:camBroker:pipc011:alarm" }
+Contact  Cam_Input1       "Alarm Input 1 [%s]"                   <contact>      (gCam) { channel="mqtt:topic:camBroker:pipc011:input1" }
+String   Cam_Resolution   "Resolution [%s]"                      <screen>       (gCam) { channel="mqtt:topic:camBroker:pipc011:resolution" }
+Number   Cam_Framerate    "Frame Rate [%d fps]"                  <line>         (gCam) { channel="mqtt:topic:camBroker:pipc011:framerate" }
+Number   Cam_SdFree       "SD Free [%d MB]"                      <returnpipe>   (gCam) { channel="mqtt:topic:camBroker:pipc011:sdFree" }
+Number   Cam_SdTotal      "SD Total [%d MB]"                     <returnpipe>   (gCam) { channel="mqtt:topic:camBroker:pipc011:sdTotal" }
+String   Cam_Firmware     "Firmware [%s]"                        <text>         (gCam) { channel="mqtt:topic:camBroker:pipc011:firmware" }
+String   Cam_LastError    "Last Error [%s]"                      <error>        (gCam) { channel="mqtt:topic:camBroker:pipc011:lastError" }
+
+Image    Cam_Snapshot     "Snapshot"                             <camera>       (gCam) { channel="mqtt:topic:camBroker:pipc011:snapshot" }
+DateTime Cam_SnapshotTime "Captured [%1$tH:%1$tM:%1$tS]"         <time>         (gCam) { channel="mqtt:topic:camBroker:pipc011:snapshotTime" }
+String   Cam_SnapshotCmd  "Request Snapshot"                     <camera>       (gCam) { channel="mqtt:topic:camBroker:pipc011:snapshotCmd", autoupdate="false" }
+
+String   Cam_PTZ          "Pan/Tilt"                             <movecontrol>  (gCam) { channel="mqtt:topic:camBroker:pipc011:ptz", autoupdate="false" }
+String   Cam_PTZMove      "Continuous Move"                      <movecontrol>  (gCam) { channel="mqtt:topic:camBroker:pipc011:ptzMove", autoupdate="false" }
+Number   Cam_Preset       "Preset"                               <zoom>         (gCam) { channel="mqtt:topic:camBroker:pipc011:preset", autoupdate="false" }
+Number   Cam_PresetSet    "Save Preset"                          <zoom>         (gCam) { channel="mqtt:topic:camBroker:pipc011:presetSet", autoupdate="false" }
+String   Cam_Patrol       "Patrol [%s]"                          <flow>         (gCam) { channel="mqtt:topic:camBroker:pipc011:patrol" }
+Switch   Cam_Relay        "Relay"                                <poweroutlet>  (gCam) { channel="mqtt:topic:camBroker:pipc011:relay" }
+Number   Cam_Cruise       "Cruise"                               <flow>         (gCam) { channel="mqtt:topic:camBroker:pipc011:cruise", autoupdate="false" }
+
+Switch   Cam_Detection    "Motion Detection"                     <motion>       (gCam) { channel="mqtt:topic:camBroker:pipc011:detection" }
+Number   Cam_Sensitivity  "Sensitivity [%d]"                     <motion>       (gCam) { channel="mqtt:topic:camBroker:pipc011:sensitivity" }
+
+Number   Cam_Brightness   "Brightness [%d]"                      <sun>          (gCam) { channel="mqtt:topic:camBroker:pipc011:brightness" }
+Number   Cam_Contrast     "Contrast [%d]"                        <contrast>     (gCam) { channel="mqtt:topic:camBroker:pipc011:contrast" }
+Number   Cam_Saturation   "Saturation [%d]"                      <colorwheel>   (gCam) { channel="mqtt:topic:camBroker:pipc011:saturation" }
+Number   Cam_Hue          "Hue [%d]"                             <colorwheel>   (gCam) { channel="mqtt:topic:camBroker:pipc011:hue" }
+Number   Cam_PTZSpeed     "PTZ Speed [%d]"                       <movecontrol>  (gCam) { channel="mqtt:topic:camBroker:pipc011:ptzSpeed" }
+Switch   Cam_Mirror       "Mirror"                               <camera>       (gCam) { channel="mqtt:topic:camBroker:pipc011:mirror" }
+Switch   Cam_Flip         "Flip"                                 <camera>       (gCam) { channel="mqtt:topic:camBroker:pipc011:flip" }
+Number   Cam_OSDColor     "OSD Color [%d]"                       <text>         (gCam) { channel="mqtt:topic:camBroker:pipc011:osdColor" }
+Number   Cam_MainsHz      "Mains Frequency [%d]"                 <energy>       (gCam) { channel="mqtt:topic:camBroker:pipc011:mainsHz" }
+Number   Cam_Lamp         "Status LED [%d]"                      <light>        (gCam) { channel="mqtt:topic:camBroker:pipc011:lamp" }

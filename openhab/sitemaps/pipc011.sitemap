@@ -1,25 +1,25 @@
-sitemap wc0030a label="Kamera WC0030A" {
+sitemap pipc011 label="Camera PIPC-011" {
     Frame label="Live" {
-        // Flask-Oberfläche auf dem Pi reicht den MJPEG-Stream ohne Kamera-Passwort durch
+        // The Flask web interface on the Pi proxies the MJPEG stream without exposing the camera password
         Video url="http://192.168.0.10:5000/video_feed" encoding="mjpeg"
         Image item=Cam_Snapshot
         Text  item=Cam_SnapshotTime
-        Switch item=Cam_SnapshotCmd mappings=[NOW="Neues Bild"]
+        Switch item=Cam_SnapshotCmd mappings=[NOW="New Snapshot"]
     }
-    Frame label="Steuerung" {
+    Frame label="Control" {
         Switch item=Cam_PTZ label="" mappings=[UP_LEFT="↖", UP="▲", UP_RIGHT="↗"]
         Switch item=Cam_PTZ label="" mappings=[LEFT="◀", CENTER="●", RIGHT="▶"]
         Switch item=Cam_PTZ label="" mappings=[DOWN_LEFT="↙", DOWN="▼", DOWN_RIGHT="↘"]
         Switch item=Cam_Preset mappings=[1="1", 2="2", 3="3", 4="4", 5="5", 6="6", 7="7", 8="8", 9="9"]
-        Switch item=Cam_Patrol mappings=[HORIZONTAL="Horizontal", VERTICAL="Vertikal", STOP="Aus"]
+        Switch item=Cam_Patrol mappings=[HORIZONTAL="Horizontal", VERTICAL="Vertical", STOP="Off"]
         Switch item=Cam_Relay
-        Switch item=Cam_Cruise mappings=[0="Kurs 1", 1="Kurs 2", 100="Kurs aus"]
+        Switch item=Cam_Cruise mappings=[0="Cruise 1", 1="Cruise 2", 100="Cruise Off"]
     }
-    Frame label="Bewegungserkennung" {
+    Frame label="Motion Detection" {
         Switch item=Cam_Detection
-        Selection item=Cam_Sensitivity mappings=[1="niedrig", 2="mittel", 3="hoch", 4="höher", 5="am höchsten"]
+        Selection item=Cam_Sensitivity mappings=[1="low", 2="medium", 3="high", 4="higher", 5="highest"]
     }
-    Frame label="Bild" {
+    Frame label="Image" {
         Slider item=Cam_Brightness minValue=0 maxValue=255 step=5
         Slider item=Cam_Contrast   minValue=0 maxValue=255 step=5
         Slider item=Cam_Saturation minValue=0 maxValue=200 step=5
@@ -27,9 +27,9 @@ sitemap wc0030a label="Kamera WC0030A" {
         Slider item=Cam_PTZSpeed   minValue=1 maxValue=100 step=5
         Switch item=Cam_Mirror
         Switch item=Cam_Flip
-        Selection item=Cam_MainsHz mappings=[1="50 Hz", 2="60 Hz", 3="Außenbereich"]
-        Selection item=Cam_OSDColor mappings=[0="aus", 1="schwarz", 2="rot", 3="grün", 4="blau", 5="lila", 6="grau", 7="silber", 8="gelb", 9="oliv", 10="türkis", 11="weiß", 12="hellblau"]
-        Selection item=Cam_Lamp mappings=[0="blinkt / aus", 1="blinkt / langsam", 2="immer aus", 3="immer an"]
+        Selection item=Cam_MainsHz mappings=[1="50 Hz", 2="60 Hz", 3="Outdoor"]
+        Selection item=Cam_OSDColor mappings=[0="off", 1="black", 2="red", 3="green", 4="blue", 5="purple", 6="grey", 7="silver", 8="yellow", 9="olive", 10="teal", 11="white", 12="light blue"]
+        Selection item=Cam_Lamp mappings=[0="blink / off", 1="blink / slow", 2="always off", 3="always on"]
     }
     Frame label="Status" {
         Text item=Cam_Motion
